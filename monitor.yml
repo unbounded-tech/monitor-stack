@@ -1,0 +1,87 @@
+version: "3"
+
+services:
+
+  monitor:
+    image: vfarcic/docker-flow-monitor:${TAG:-latest}
+    volumes:
+      - monitor:/prometheus
+    environment:
+      - GLOBAL_SCRAPE_INTERVAL=10s
+      - ARG_WEB_EXTERNAL-URL=http://${MONITOR_DOMAIN:-localhost}
+      - ARG_ALERTMANAGER_URL=http://alertmanager:9093
+    networks:
+      - proxy
+      - monitor
+    deploy:
+      labels:
+        - com.df.notify=true
+        - com.df.distribute=true
+        - com.df.serviceDomain=${MONITOR_DOMAIN:-localhost}
+        - com.df.port=9090
+        - com.df.letsencrypt.host=${MONITOR_DOMAIN:-localhost}
+        - com.df.letsencrypt.email=pat@patscott.io
+      placement:
+        constraints:
+          - node.role == worker
+      resources:
+        reservations:
+          memory: 500M
+        limits:
+          memory: 800M
+
+  alertmanager:
+    image: prom/alertmanager
+    networks:
+      - monitor
+    secrets:
+      - alert_manager_config
+    deploy:
+      placement:
+        constraints:
+          - node.role == worker
+      resources:
+        reservations:
+          memory: 256M
+        limits:
+          memory: 512M
+    command: -config.file=/run/secrets/alert_manager_config -storage.path=/alertmanager
+
+  swarm-listener:
+    image: vfarcic/docker-flow-swarm-listener
+    networks:
+      - monitor
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - DF_NOTIFY_CREATE_SERVICE_URL=http://monitor:8080/v1/docker-flow-monitor/reconfigure
+      - DF_NOTIFY_REMOVE_SERVICE_URL=http://monitor:8080/v1/docker-flow-monitor/remove
+    deploy:
+      resources:
+        reservations:
+          memory: 16M
+        limits:
+          memory: 32M
+      placement:
+        constraints: 
+          - node.role == manager
+
+volumes:
+
+  monitor:
+    driver: cloudstor:aws
+    external: false
+
+networks:
+
+  monitor:
+    external: true
+
+  proxy:
+    external: true
+
+
+secrets:
+
+  alert_manager_config:
+    external: true
