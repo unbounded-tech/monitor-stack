@@ -35,7 +35,7 @@ services:
     networks:
       - monitor
     secrets:
-      - alert_manager_config
+      - alertmanager_config
     deploy:
       placement:
         constraints:
@@ -45,7 +45,7 @@ services:
           memory: 256M
         limits:
           memory: 512M
-    command: -config.file=/run/secrets/alert_manager_config -storage.path=/alertmanager
+    command: -config.file=/run/secrets/alertmanager_config -storage.path=/alertmanager
 
   swarm-listener:
     image: vfarcic/docker-flow-swarm-listener
@@ -83,5 +83,5 @@ networks:
 
 secrets:
 
-  alert_manager_config:
+  alertmanager_config:
     external: true
