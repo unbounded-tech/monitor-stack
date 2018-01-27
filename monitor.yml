@@ -1,15 +1,18 @@
-version: "3.2"
+version: "3.3"
 
 services:
 
   monitor:
-    image: vfarcic/docker-flow-monitor:${TAG:-latest}
+    image: vfarcic/docker-flow-monitor:${TAG:-2-18.01.14-44}
+    ports:
+      - 8082:8080
     volumes:
-      - monitor:/prometheus
+      - monitor2:/prometheus
     environment:
-      - GLOBAL_SCRAPE_INTERVAL=10s
+      - GLOBAL_SCRAPE_INTERVAL=1m
       - ARG_WEB_EXTERNAL-URL=http://${MONITOR_DOMAIN:-localhost}
       - ARG_ALERTMANAGER_URL=http://alertmanager:9093
+      - ARG_STORAGE_LOCAL_RETENTION=168h
     networks:
       - proxy
       - monitor
@@ -17,18 +20,22 @@ services:
       labels:
         - com.df.notify=true
         - com.df.distribute=true
-        - com.df.serviceDomain=${MONITOR_DOMAIN:-localhost}
+        - com.df.serviceDomain=${MONITOR_DOMAIN}
         - com.df.port=9090
-        - com.df.letsencrypt.host=${MONITOR_DOMAIN:-localhost}
-        - com.df.letsencrypt.email=pat@patscott.io
+        - com.df.alertName=memlimit
+        - com.df.alertIf=@service_mem_limit:0.9
+        - com.df.alertFor=30s
+        - com.df.scrapePort=9090
+        - com.df.usersPassEncrypted=true
+        - com.df.usersSecret=admin
       placement:
         constraints:
           - node.role == worker
       resources:
         reservations:
-          memory: 500M
+          memory: 7G
         limits:
-          memory: 800M
+          memory: 7G
 
   alertmanager:
     image: prom/alertmanager
@@ -37,6 +44,10 @@ services:
     secrets:
       - alertmanager_config
     deploy:
+      labels:
+        - com.df.alertName=memlimit
+        - com.df.alertIf=@service_mem_limit:0.8
+        - com.df.alertFor=30s
       placement:
         constraints:
           - node.role == worker
@@ -48,7 +59,7 @@ services:
     command: -config.file=/run/secrets/alertmanager_config -storage.path=/alertmanager
 
   swarm-listener:
-    image: vfarcic/docker-flow-swarm-listener
+    image: vfarcic/docker-flow-swarm-listener:${DFMSL_TAG:-18.01.06-29}
     networks:
       - monitor
     volumes:
@@ -68,8 +79,12 @@ services:
 
 volumes:
 
-  monitor:
+  monitor2:
     driver: cloudstor:aws
+    driver_opts:
+      ebstype: gp2
+      size: 500
+      backing: relocatable
     external: false
 
 networks:

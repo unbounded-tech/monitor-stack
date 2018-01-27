@@ -1,6 +1,10 @@
 pipeline {
   agent {
-    label "docker"
+    label "prod"
+  }
+  options {
+    buildDiscarder(logRotator(numToKeepStr: '2'))
+    disableConcurrentBuilds()
   }
   stages {
     stage("notify") {
@@ -24,10 +28,16 @@ pipeline {
         branch "master"
       }
       environment {
-        MONITOR_DOMAIN = 'monitor.imakethingsfortheinternet.com'
+        MONITOR_DOMAIN = "${env.monitorDomain}"
       }
       steps {
-        sh "docker stack deploy -c monitor.yml monitor"
+        script {
+          if (env.monitorDomain) {
+            sh "docker stack deploy --prune -c monitor.yml monitor"
+          } else {
+            sh 'echo "ERROR: env.monitorDomain is required." && exit 1'
+          }
+        }
       }
     }
   }
