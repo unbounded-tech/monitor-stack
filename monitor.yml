@@ -58,6 +58,38 @@ services:
           memory: 512M
     command: -config.file=/run/secrets/alertmanager_config -storage.path=/alertmanager
 
+  scaler:
+    image: thomasjpfan/docker-scaler:${SCALER_TAG:-1.0.2}
+    environment:
+      - ALERTMANAGER_ADDRESS=http://alertmanager:9093
+      - NODE_SCALER_BACKEND=${NODE_SCALER_BACKEND:-aws}
+      - AWS_MANAGER_ASG=${MANAGER_ASG}
+      - AWS_WORKER_ASG=${WORKER_ASG}
+      - AWS_DEFAULT_REGION=${AWS_DEFAULT_REGION:-us-east-2}
+      - SERVER_PREFIX=/scaler
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - scaler
+      - proxy
+      - monitor
+    deploy:
+      replicas: 1
+      labels:
+        - com.df.notify=true
+        - com.df.servicePath=/scaler
+        - com.df.port=8080
+        - com.df.alertName=memlimit
+        - com.df.alertIf=@service_mem_limit:0.8
+        - com.df.alertFor=30s
+      placement:
+        constraints: [node.role == manager]
+      resources:
+        reservations:
+          memory: 10M
+        limits:
+          memory: 10M
+
   swarm-listener:
     image: vfarcic/docker-flow-swarm-listener:${DFMSL_TAG:-18.01.06-29}
     networks:
